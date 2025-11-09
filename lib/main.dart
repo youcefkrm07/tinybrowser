@@ -104,7 +104,7 @@ class _RootScaffoldState extends State<RootScaffold>
               child: GlassContainer(
                 child: AddressBar(
                   controller: state.addressController,
-                  onGo: () => state.loadUrlOnCurrentTab(state.addressController.text),
+                  onGo: () => state.loadUrl(state.addressController.text),
                 ),
               ),
             ),
@@ -184,6 +184,7 @@ class BrowserState extends ChangeNotifier {
   bool darkMode = false;
   bool backgroundPlaybackEnabled = true;
   String homepage = 'https://www.google.com';
+  String? userAgent;
 
   // Background audio
   final AudioPlayer audioPlayer = AudioPlayer();
@@ -211,6 +212,7 @@ class BrowserState extends ChangeNotifier {
     backgroundPlaybackEnabled = _prefs.getBool('bgPlayback') ?? true;
     homepage = _prefs.getString('homepage') ?? homepage;
     bookmarks.addAll(_prefs.getStringList('bookmarks') ?? []);
+    userAgent = _prefs.getString('userAgent');
 
     // Load scripts
     final rawScripts = _prefs.getStringList('scripts') ?? [];
@@ -242,6 +244,9 @@ class BrowserState extends ChangeNotifier {
     await _prefs.setBool('bgPlayback', backgroundPlaybackEnabled);
     await _prefs.setString('homepage', homepage);
     await _prefs.setStringList('bookmarks', bookmarks);
+    if (userAgent != null) {
+      await _prefs.setString('userAgent', userAgent!);
+    }
     await _prefs.setStringList(
       'scripts',
       scripts.map((e) => e.toStorage()).toList(),
@@ -290,6 +295,12 @@ class BrowserState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setUserAgent(String? ua) {
+    userAgent = ua;
+    persist();
+    notifyListeners();
+  }
+
   void toggleAdBlock(bool v) {
     adBlockEnabled = v;
     persist();
@@ -323,16 +334,18 @@ class BrowserState extends ChangeNotifier {
   }
 
   void recordHistory(String url) {
+    if (tabs[currentTabIndex].isIncognito) return; // do not store in incognito
     if (url.startsWith('http')) {
       history.remove(url);
       history.insert(0, url);
       if (history.length > 100) history.removeLast();
+      persist();
     }
   }
 
   List<String> suggestions(String query) {
     if (query.isEmpty) return bookmarks.take(5).toList();
-    final all = {...bookmarks, ...history}.toList();
+    final all = <String>{...bookmarks, ...history}.toList();
     all.sort();
     return all
         .where((e) => e.toLowerCase().contains(query.toLowerCase()))
@@ -341,8 +354,8 @@ class BrowserState extends ChangeNotifier {
   }
 
   // Navigation helpers
-  void loadUrlOnCurrentTab(String input) {
-    var text = input.trim();
+  void loadUrl(String url) {
+    var text = url.trim();
     if (text.isEmpty) return;
     if (!text.startsWith('http://') && !text.startsWith('https://')) {
       // Treat as search query
