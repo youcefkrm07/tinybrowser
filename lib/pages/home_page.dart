@@ -47,6 +47,8 @@ class _HomePageState extends State<HomePage> {
         javaScriptEnabled: true,
         useShouldOverrideUrlLoading: true,
         mediaPlaybackRequiresUserGesture: false,
+        // Supply UA from state if set
+        userAgent: context.read<BrowserState>().effectiveUserAgent,
       ),
       initialUrlRequest: URLRequest(url: WebUri(tab.initialUrl)),
       onWebViewCreated: (controller) {
@@ -54,9 +56,16 @@ class _HomePageState extends State<HomePage> {
         _lastLoadedUrl = tab.initialUrl;
       },
       shouldOverrideUrlLoading: (controller, navAction) async {
-        // Let all http(s) load inside; block others
         final uri = navAction.request.url;
-        if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+        if (uri == null) return NavigationActionPolicy.ALLOW;
+        // If the URL is a media file and background playback is on, play via audio
+        final urlStr = uri.toString();
+        final isMedia = urlStr.endsWith('.mp3') || urlStr.endsWith('.m4a') || urlStr.endsWith('.aac') || urlStr.endsWith('.wav') || urlStr.endsWith('.ogg');
+        if (isMedia && context.read<BrowserState>().backgroundPlaybackEnabled) {
+          unawaited(context.read<BrowserState>().playInBackground(urlStr));
+          return NavigationActionPolicy.CANCEL;
+        }
+        if (uri.scheme == 'http' || uri.scheme == 'https') {
           return NavigationActionPolicy.ALLOW;
         }
         return NavigationActionPolicy.CANCEL;
@@ -65,6 +74,7 @@ class _HomePageState extends State<HomePage> {
         // Update address bar text with the final URL
         if (url != null) {
           state.addressController.text = url.toString();
+          state.recordHistory(url.toString());
         }
 
         // Update title
