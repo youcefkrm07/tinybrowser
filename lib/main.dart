@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 // import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
-// import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -105,9 +104,7 @@ class _RootScaffoldState extends State<RootScaffold>
               child: GlassContainer(
                 child: AddressBar(
                   controller: state.addressController,
-                  onGo: (value) => state.loadUrlOnCurrentTab(value),
-                  onHome: () => _tabController.animateTo(0),
-                  suggestionsBuilder: (q) => state.suggestions(q),
+                  onGo: () => state.loadUrlOnCurrentTab(state.addressController.text),
                 ),
               ),
             ),
@@ -130,7 +127,7 @@ class _RootScaffoldState extends State<RootScaffold>
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: BottomNav(
           currentIndex: _tabController.index,
-          onChanged: (i) => setState(() => _tabController.index = i),
+          onTap: (i) => setState(() => _tabController.index = i),
         ),
       ),
     );
@@ -226,12 +223,9 @@ class BrowserState extends ChangeNotifier {
       // Seed example script
       scripts.add(
         UserScriptModel(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
           name: 'Hide basic ads',
-          matchPattern: 'example.com',
-          css:
+          script:
               '.ad, .ads, [id^="ad"], [class*="ad"] { display:none !important; }',
-          js: '',
         ),
       );
     }
