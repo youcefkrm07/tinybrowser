@@ -11,6 +11,9 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'models/download_item.dart';
 import 'models/user_script.dart';
@@ -146,9 +149,9 @@ class GlassContainer extends StatelessWidget {
     return Container(
       margin: margin,
       decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: 0.6),
+        color: scheme.surface.withOpacity(0.8),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outline.withValues(alpha: 0.2)),
+        border: Border.all(color: scheme.outline.withOpacity(0.4)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -173,6 +176,7 @@ class BrowserTab {
   String initialUrl;
   String? faviconUrl;
   bool isIncognito;
+  InAppWebViewController? webViewController;
 }
 
 class BrowserState extends ChangeNotifier {
@@ -322,6 +326,30 @@ class BrowserState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void addScript(UserScriptModel script) {
+    scripts.add(script);
+    persist();
+    notifyListeners();
+  }
+
+  void updateScript(UserScriptModel script, int index) {
+    scripts[index] = script;
+    persist();
+    notifyListeners();
+  }
+
+  void removeScript(int index) {
+    scripts.removeAt(index);
+    persist();
+    notifyListeners();
+  }
+
+  void toggleScript(int index, bool enabled) {
+    scripts[index].enabled = enabled;
+    persist();
+    notifyListeners();
+  }
+
   void recordHistory(String url) {
     if (url.startsWith('http')) {
       history.remove(url);
@@ -349,7 +377,7 @@ class BrowserState extends ChangeNotifier {
       final encoded = Uri.encodeComponent(text);
       text = 'https://www.google.com/search?q=$encoded';
     }
-    tabs[currentTabIndex].initialUrl = text;
+    tabs[currentTabIndex].webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(text)));
     addressController.text = text;
     notifyListeners();
   }
@@ -387,6 +415,58 @@ class BrowserState extends ChangeNotifier {
     if (i != -1) {
       downloads[i] = item;
       notifyListeners();
+    }
+  }
+
+  Future<void> startDownload(String url) async {
+    // TODO: Handle permissions
+    final dio = Dio();
+    final downloadsDirectory = await getApplicationDocumentsDirectory();
+    final filename = url.split('/').last;
+    final savePath = '${downloadsDirectory.path}/$filename';
+
+    final downloadItem = DownloadItem(
+      id: url,
+      url: url,
+      filename: filename,
+    );
+    addDownload(downloadItem);
+
+    try {
+      await dio.download(
+        url,
+        savePath,
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            updateDownload(
+              DownloadItem(
+                id: url,
+                url: url,
+                filename: filename,
+                progress: received / total,
+              ),
+            );
+          }
+        },
+      );
+      updateDownload(
+        DownloadItem(
+          id: url,
+          url: url,
+          filename: filename,
+          status: DownloadStatus.completed,
+          progress: 1.0,
+        ),
+      );
+    } catch (e) {
+      updateDownload(
+        DownloadItem(
+          id: url,
+          url: url,
+          filename: filename,
+          status: DownloadStatus.failed,
+        ),
+      );
     }
   }
 }
