@@ -183,6 +183,9 @@ class BrowserState extends ChangeNotifier {
   bool adBlockEnabled = true;
   bool darkMode = false;
   bool backgroundPlaybackEnabled = true;
+  bool useCustomUserAgent = false;
+  String customUserAgent = '';
+
   String homepage = 'https://www.google.com';
 
   // Background audio
@@ -205,11 +208,19 @@ class BrowserState extends ChangeNotifier {
   // Address controller (shared)
   final TextEditingController addressController = TextEditingController();
 
+  // Computed UA
+  String get effectiveUserAgent => useCustomUserAgent && customUserAgent.trim().isNotEmpty
+      ? customUserAgent.trim()
+      : '';
+
+
   void loadFromPrefs() {
     adBlockEnabled = _prefs.getBool('adBlockEnabled') ?? true;
     darkMode = _prefs.getBool('darkMode') ?? false;
     backgroundPlaybackEnabled = _prefs.getBool('bgPlayback') ?? true;
     homepage = _prefs.getString('homepage') ?? homepage;
+    useCustomUserAgent = _prefs.getBool('useUA') ?? false;
+    customUserAgent = _prefs.getString('ua') ?? '';
     bookmarks.addAll(_prefs.getStringList('bookmarks') ?? []);
 
     // Load scripts
@@ -241,6 +252,8 @@ class BrowserState extends ChangeNotifier {
     await _prefs.setBool('darkMode', darkMode);
     await _prefs.setBool('bgPlayback', backgroundPlaybackEnabled);
     await _prefs.setString('homepage', homepage);
+    await _prefs.setBool('useUA', useCustomUserAgent);
+    await _prefs.setString('ua', customUserAgent);
     await _prefs.setStringList('bookmarks', bookmarks);
     await _prefs.setStringList(
       'scripts',
@@ -290,6 +303,18 @@ class BrowserState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setUserAgent({required bool enabled, String? ua}) {
+    useCustomUserAgent = enabled;
+    if (ua != null) customUserAgent = ua;
+    persist();
+    notifyListeners();
+  }
+
+    homepage = url;
+    persist();
+    notifyListeners();
+  }
+
   void toggleAdBlock(bool v) {
     adBlockEnabled = v;
     persist();
@@ -323,6 +348,8 @@ class BrowserState extends ChangeNotifier {
   }
 
   void recordHistory(String url) {
+    if (tabs[currentTabIndex].isIncognito) return; // do not store in incognito
+
     if (url.startsWith('http')) {
       history.remove(url);
       history.insert(0, url);
