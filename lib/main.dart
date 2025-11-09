@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui';
 
 // ignore: unnecessary_import
@@ -14,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'models/download_item.dart';
 import 'models/user_script.dart';
@@ -177,6 +179,7 @@ class BrowserTab {
   String? faviconUrl;
   bool isIncognito;
   InAppWebViewController? webViewController;
+  Uint8List? screenshot;
 }
 
 class BrowserState extends ChangeNotifier {
@@ -286,6 +289,14 @@ class BrowserState extends ChangeNotifier {
     if (title != null) tabs[index].title = title;
     if (favicon != null) tabs[index].faviconUrl = favicon;
     notifyListeners();
+  }
+
+  void updateTabScreenshot(int index) {
+    if (index < 0 || index >= tabs.length) return;
+    tabs[index].webViewController?.takeScreenshot().then((screenshot) {
+      tabs[index].screenshot = screenshot;
+      notifyListeners();
+    });
   }
 
   void setHomepage(String url) {
@@ -419,10 +430,10 @@ class BrowserState extends ChangeNotifier {
   }
 
   Future<void> startDownload(String url) async {
-    // TODO: Handle permissions
-    final dio = Dio();
-    final downloadsDirectory = await getApplicationDocumentsDirectory();
-    final filename = url.split('/').last;
+    if (await Permission.storage.request().isGranted) {
+      final dio = Dio();
+      final downloadsDirectory = await getApplicationDocumentsDirectory();
+      final filename = url.split('/').last;
     final savePath = '${downloadsDirectory.path}/$filename';
 
     final downloadItem = DownloadItem(
@@ -467,6 +478,7 @@ class BrowserState extends ChangeNotifier {
           status: DownloadStatus.failed,
         ),
       );
+    }
     }
   }
 }

@@ -12,8 +12,21 @@ class HomePage extends StatelessWidget {
     final state = context.watch<BrowserState>();
     final tab = state.tabs[state.currentTabIndex];
 
+    final adBlocker = ContentBlocker(
+      trigger: ContentBlockerTrigger(
+        urlFilter: '.*',
+      ),
+      action: ContentBlockerAction(
+        type: ContentBlockerActionType.CSS_DISPLAY_NONE,
+        selector: '.ad, .ads, [id^="ad"], [class*="ad"]',
+      ),
+    );
+
     return InAppWebView(
       initialUrlRequest: URLRequest(url: WebUri(tab.initialUrl)),
+      initialSettings: InAppWebViewSettings(
+        contentBlockers: state.adBlockEnabled ? [adBlocker] : [],
+      ),
       onWebViewCreated: (controller) {
         tab.webViewController = controller;
       },
@@ -22,8 +35,8 @@ class HomePage extends StatelessWidget {
       },
       onLoadStop: (controller, url) async {
         final title = await controller.getTitle();
-        final favicon = await controller.getFavicon();
-        state.updateTabMeta(state.currentTabIndex, title: title, favicon: favicon?.toString());
+        state.updateTabMeta(state.currentTabIndex, title: title);
+        state.updateTabScreenshot(state.currentTabIndex);
 
         for (final script in state.scripts) {
           if (script.enabled) {
@@ -33,6 +46,11 @@ class HomePage extends StatelessWidget {
       },
       onDownloadStartRequest: (controller, downloadStartRequest) {
         state.startDownload(downloadStartRequest.url.toString());
+      },
+      onUpdateFavicon: (controller, url, favicons) {
+        if (favicons.isNotEmpty) {
+          state.updateTabMeta(state.currentTabIndex, favicon: favicons.first.url.toString());
+        }
       },
     );
   }
